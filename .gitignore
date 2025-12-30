@@ -1,0 +1,136 @@
+# NYC Housing Health Project - .gitignore
+# ========================================
+
+# ============================================================================
+# Claude / AI Tools
+# ============================================================================
+.claude/
+
+# ============================================================================
+# Python
+# ============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints
+
+# ============================================================================
+# IDE / Editor
+# ============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ============================================================================
+# Environment & Secrets
+# ============================================================================
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+# ============================================================================
+# Development / Temporary Files
+# ============================================================================
+*.bak
+*.tmp
+*.temp
+*.cache
+rebuild_output.txt
+evidence_decay_tracker_execution_plan.md
+Trial_Desert.md
+nyc_housing_health_execution_plan.md
+Housing_Maintenance_Code_Complaints_and_Problems_Data_Dictionary.xlsx
+
+# ============================================================================
+# Data Files
+# ============================================================================
+# Raw data - too large, regenerate via download scripts
+data/raw/
+
+# Large processed files (not needed for core functionality)
+data/processed/violations_clean.csv
+data/processed/complaints_clean.csv
+data/processed/building_lookup.csv
+data/processed/building_lookup.db
+data/processed/address_lookup.db
+data/processed/nta_aggregated.csv
+data/processed/nta_with_health.csv
+data/processed/nta_with_health_improved.csv
+data/processed/nta_with_health_updated.csv
+data/processed/nta_with_demographics.csv
+data/processed/nta_complete.csv
+
+# Keep these essential files:
+# - building_lookup.db.gz (compressed database, ~95MB)
+# - housing_health_index.csv (small)
+
+# Health data - can be redownloaded
+data/health/*.csv
+data/health/*.xlsx
+!data/health/.gitkeep
+
+# ============================================================================
+# Outputs (regeneratable)
+# ============================================================================
+outputs/
+
+# ============================================================================
+# Logs
+# ============================================================================
+logs/*.log
+!logs/.gitkeep
+
+# ============================================================================
+# Node.js / Next.js (web app)
+# ============================================================================
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# ============================================================================
+# Testing
+# ============================================================================
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# ============================================================================
+# Streamlit
+# ============================================================================
+.streamlit/secrets.toml

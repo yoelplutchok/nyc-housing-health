@@ -1,0 +1,161 @@
+# NYC Housing Health Index - Configuration Parameters
+# ===================================================
+# This file contains all configurable parameters for the analysis.
+# Modify these values to adjust data collection, processing, and scoring.
+
+# Data Collection Settings
+# ------------------------
+data_collection:
+  # Date range for data collection (YYYY-MM-DD format)
+  start_date: "2019-01-01"
+  end_date: null  # null = current date
+  
+  # Socrata API settings
+  socrata:
+    base_url: "https://data.cityofnewyork.us"
+    chunk_size: 50000  # Rows per API request (max 50000)
+    timeout: 300  # Request timeout in seconds
+  
+  # Dataset IDs (NYC Open Data Socrata)
+  datasets:
+    hpd_violations: "wvxf-dwi5"
+    hpd_complaints: "uwyv-629c"
+    311_requests: "erm2-nwe9"
+    pluto: "64uk-42ks"
+    nta_boundaries: "9nt8-h7nd"
+
+# Geographic Settings
+# -------------------
+geography:
+  # NYC bounding box for coordinate validation
+  bounds:
+    lat_min: 40.4774
+    lat_max: 41.0000
+    lon_min: -74.2591
+    lon_max: -73.7002
+  
+  # Primary aggregation level
+  primary_unit: "nta"  # Neighborhood Tabulation Area
+  
+  # Coordinate reference system
+  crs: "EPSG:4326"  # WGS84
+
+# Violation Classification
+# ------------------------
+violations:
+  # Severity weights by class
+  class_weights:
+    A: 1  # Non-hazardous
+    B: 2  # Hazardous
+    C: 3  # Immediately hazardous
+  
+  # Keywords for health-related violations (case-insensitive)
+  keywords:
+    lead:
+      - "lead"
+      - "lead-based"
+      - "lead paint"
+      - "leadpaint"
+      - "xrf"
+      - "epa-hud"
+      - "abatement"
+    mold:
+      - "mold"
+      - "mildew"
+      - "moisture"
+      - "water damage"
+      - "dampness"
+      - "fungus"
+      - "musty"
+    pests:
+      - "roach"
+      - "cockroach"
+      - "rodent"
+      - "mice"
+      - "mouse"
+      - "rat"
+      - "pest"
+      - "bedbug"
+      - "bed bug"
+      - "vermin"
+      - "infestation"
+    heat:
+      - "heat"
+      - "hot water"
+      - "boiler"
+      - "heating system"
+      - "furnace"
+      - "radiator"
+      - "thermostat"
+
+# 311 Complaint Categories
+# ------------------------
+complaints_311:
+  # Complaint types to include (housing/health related)
+  include_types:
+    - "HEAT/HOT WATER"
+    - "UNSANITARY CONDITION"
+    - "PLUMBING"
+    - "WATER SYSTEM"
+    - "MOLD"
+    - "LEAD"
+    - "Rodent"
+    - "Indoor Air Quality"
+    - "Indoor Sewage"
+
+# Index Calculation
+# -----------------
+index:
+  # Component weights (must sum to 1.0)
+  weights:
+    violations: 0.30
+    complaints: 0.25
+    asthma: 0.20
+    lead: 0.15
+    building_age: 0.10
+  
+  # 311 reporting bias adjustment
+  # Income elasticity of 311 reporting (research suggests ~0.3)
+  income_elasticity: 0.3
+  
+  # Risk category thresholds
+  risk_thresholds:
+    high: 75      # CHHI >= 75
+    elevated: 50  # 50 <= CHHI < 75
+    moderate: 25  # 25 <= CHHI < 50
+    # Low: CHHI < 25
+
+# Building Age Categories
+# -----------------------
+building_age:
+  # Lead paint was banned in 1978
+  lead_paint_cutoff: 1978
+  # High risk buildings (lead + asbestos + deferred maintenance)
+  high_risk_cutoff: 1950
+
+# Output Settings
+# ---------------
+output:
+  # Figure export settings
+  figures:
+    dpi: 300
+    format: ["png", "pdf"]
+  
+  # Map settings
+  map:
+    center_lat: 40.7128
+    center_lon: -74.0060
+    default_zoom: 10
+    
+  # Color scale for CHHI (red = bad, green = good)
+  color_scale:
+    low_risk: "#2ecc71"      # Green (CHHI 0-25)
+    moderate: "#f1c40f"      # Yellow (CHHI 25-50)
+    elevated: "#e67e22"      # Orange (CHHI 50-75)
+    high_risk: "#e74c3c"     # Red (CHHI 75-100)
+
+# Random Seed
+# -----------
+# For reproducibility of any sampling operations
+random_seed: 42
+

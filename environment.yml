@@ -1,0 +1,24 @@
+name: housing-health
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pandas>=2.0
+  - geopandas>=0.14
+  - numpy>=1.24
+  - requests>=2.31
+  - folium>=0.15
+  - matplotlib>=3.8
+  - seaborn>=0.13
+  - scipy>=1.11
+  - shapely>=2.0
+  - pyproj>=3.6
+  - python-dotenv>=1.0
+  - tqdm>=4.66
+  - jupyter>=1.0
+  - pip
+  - pip:
+    - sodapy  # Socrata API client
+    - streamlit>=1.29  # Web app framework
+
