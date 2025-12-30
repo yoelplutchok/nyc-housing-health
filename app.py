@@ -1601,7 +1601,7 @@ def display_about_page():
         - Folium (maps)
 
         **Source Code:**
-        [GitHub Repository](https://github.com/yourusername/nyc-housing-health) *(Coming Soon)*
+        [GitHub Repository](https://github.com/yoelplutchok/nyc-housing-health)
 
         **Data Freshness:**
         Our database is rebuilt periodically from NYC Open Data snapshots. Violation totals may differ
