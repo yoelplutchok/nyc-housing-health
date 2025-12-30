@@ -1,184 +1,119 @@
-# NYC Child Health Housing Index
+# NYC Housing Violations Lookup Tool
 
-**Mapping the Connection Between Housing Conditions and Child Health in NYC**
+A building lookup tool that allows users to search any NYC address and see how its housing code violations compare to other buildings citywide and within its neighborhood.
 
-This project builds an interactive dashboard and address lookup tool that quantifies the relationship between housing code violations (lead, mold, pests, heat) and pediatric health outcomes (asthma, lead poisoning) across NYC neighborhoods.
+## What This Tool Does
 
-## 🎯 Project Goals
+Enter any NYC address to see:
+- **Violation counts and percentiles** - How this building ranks against all NYC buildings
+- **Neighborhood comparison** - How the building compares to others in its immediate area
+- **Adjusted vs raw scores** - Both per-unit normalized and absolute violation counts
+- **Violation breakdown** - Categories including lead, mold, pests, and heat issues
+- **Complaint history** - 311 complaints filed against the building
+- **Trend analysis** - Whether violations are increasing or decreasing over time
+- **Nearby buildings** - Comparison with buildings within 200 meters
 
-1. **Neighborhood Explorer** - Interactive choropleth map showing a composite "Child Health Housing Index" by neighborhood
-2. **Address Lookup Tool** - Enter any NYC address → get a health risk score based on building violations + neighborhood context
-3. **Correlation Analysis** - Statistical evidence showing the housing-health connection
-
-## 🆕 Recent Updates (December 2024)
-
-### Data Accuracy Fixes
-- **Fixed percentile calculation bug** - Total Violations now correctly uses `violation_count_pct` instead of `violations_open_pct`
-- **Improved NTA coverage** - Spatial join now assigns neighborhoods to 99.9% of buildings (up from 23.5%)
-- **Enhanced health violation detection** - Expanded keyword matching for lead, mold, pest, and heat violations
-
-### New Features
-- **Time Period Filtering** - Filter violations by All Time, Last 2 Years, or Last Year
-- **Violations Per Unit** - Fair comparison metric normalized by building size
-- **Class A/B/C Breakdown** - Separate percentile rankings by violation severity class
-- **Trend Indicators** - Compare last 12 months vs prior year with directional arrows
-- **Building Comparison** - Add multiple buildings to compare side-by-side
-- **Fuzzy Address Matching** - Recognizes street name variants (St/Street, Ave/Avenue, etc.)
-
-### UX Improvements
-- **Zero-violation messaging** - Shows "Better than X% of NYC buildings" instead of confusing 0th percentile
-- **Improved tooltips** - Neighborhood map shows detailed stats on hover
-- **Data freshness indicator** - Shows when data was last updated
-
-### Technical Improvements
-- **Database connection context manager** - Prevents connection leaks
-- **Error handling in map generation** - Graceful fallback for invalid data
-- **Configuration constants** - Magic numbers extracted to config section
-
-## 📊 Key Metrics
-
-| Metric | Definition | Source |
-|--------|------------|--------|
-| Housing Violations Score | Weighted violations per 1,000 housing units | HPD |
-| 311 Complaints Score | Housing-health complaints per 1,000 residents (bias-adjusted) | 311 |
-| Child Asthma Rate | Pediatric asthma ED visits per 10,000 children | NYC DOHMH |
-| Lead Poisoning Rate | % children with elevated blood lead levels | NYC DOHMH |
-| Building Age Score | % housing stock pre-1978 (lead paint era) | PLUTO |
-| **Child Health Housing Index (CHHI)** | Composite score 0-100 | Calculated |
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.11+
-- Conda (recommended) or pip
-- geopandas (for spatial NTA assignment)
-- Node.js 18+ (for optional web application)
+## Running the App
 
 ```bash
-# Install geopandas (requires proj library)
-brew install proj  # macOS
-pip install geopandas
-```
+# Install dependencies
+pip install -r requirements.txt
 
-### Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/nyc-housing-health.git
-cd nyc-housing-health
-
-# Create conda environment
-conda env create -f environment.yml
-conda activate housing-health
-
-# Install package
-pip install -e .
-
-# Copy environment variables
-cp .env.example .env
-# Edit .env with your API keys (optional but recommended)
-```
-
-### Run the Pipeline
-
-```bash
-# Run everything
-make all
-
-# Or run individual steps:
-make collect   # Download data from NYC Open Data
-make process   # Clean and aggregate data
-make analyze   # Calculate indices and run analyses
-make visualize # Generate maps and charts
-```
-
-### Run the Streamlit App
-
-```bash
+# Run the Streamlit app
 streamlit run app.py
 ```
 
-The app will open at http://localhost:8501 with:
-- Address lookup with building health scores
-- Neighborhood comparison maps
-- Building comparison tool
+The app will open at http://localhost:8501
 
-### Web Application (Optional)
+## Methodology
 
-```bash
-cd web
-npm install
-npm run dev
+### Data Sources
+
+| Data | Source | Description |
+|------|--------|-------------|
+| Housing Violations | NYC HPD via Open Data | Housing Maintenance Code violations from inspections |
+| Housing Complaints | NYC HPD via Open Data | 311 complaints about housing conditions |
+| Building Info | NYC PLUTO | Year built, units, floors, location |
+| NTA Boundaries | NYC Open Data | Neighborhood Tabulation Areas for geographic grouping |
+
+### Two Comparison Metrics
+
+**1. Adjusted Score (Per-Unit Normalized)**
+
+For fair comparison across buildings of different sizes, we calculate a severity-weighted score normalized by the number of units:
+
+```
+Adjusted Score = (Class A × 1 + Class B × 2 + Class C × 3) / Number of Units
 ```
 
-## 📁 Project Structure
+- Class A: Non-hazardous (weight: 1)
+- Class B: Hazardous (weight: 2)
+- Class C: Immediately hazardous (weight: 3)
 
-```
-nyc-housing-health/
-├── data/
-│   ├── raw/              # Original downloaded files
-│   ├── processed/        # Cleaned and transformed data
-│   ├── geo/              # Geographic boundaries
-│   └── health/           # Health outcome data
-├── scripts/
-│   ├── collect/          # Data collection scripts
-│   ├── process/          # Data cleaning and transformation
-│   ├── analyze/          # Statistical analysis
-│   └── visualize/        # Chart generation
-├── src/housing_health/   # Core Python utilities
-├── web/                  # Next.js web application
-├── outputs/
-│   ├── figures/          # Static charts and maps
-│   ├── interactive/      # HTML maps
-│   └── tables/           # Summary statistics
-├── docs/                 # Documentation
-├── configs/              # Configuration files
-└── tests/                # Test files
-```
+This accounts for the fact that a 100-unit building will naturally have more violations than a 5-unit building.
 
-## 📚 Data Sources
+**2. Raw Violation Count**
 
-- **HPD Violations**: [NYC Open Data](https://data.cityofnewyork.us/Housing-Development/Housing-Maintenance-Code-Violations/wvxf-dwi5)
-- **HPD Complaints**: [NYC Open Data](https://data.cityofnewyork.us/Housing-Development/Housing-Maintenance-Code-Complaints/uwyv-629c)
-- **311 Requests**: [NYC Open Data](https://data.cityofnewyork.us/Social-Services/311-Service-Requests-from-2010-to-Present/erm2-nwe9)
-- **PLUTO**: [NYC Open Data](https://data.cityofnewyork.us/City-Government/Primary-Land-Use-Tax-Lot-Output-PLUTO-/64uk-42ks)
-- **Health Data**: [NYC Environment & Health Data Portal](https://a816-dohbesp.nyc.gov/IndicatorPublic/data-explorer/)
-- **NTA Boundaries**: [NYC Open Data](https://data.cityofnewyork.us/City-Government/2020-Neighborhood-Tabulation-Areas-NTAs-/9nt8-h7nd)
+The total number of violations regardless of building size. Useful for understanding absolute conditions but not for fair cross-building comparison.
 
-## 🔧 Configuration
+### Percentile Calculations
 
-All configurable parameters are in `configs/params.yml`:
-- Data collection date ranges
-- Violation keywords for categorization
-- Index component weights
-- Color scales and thresholds
+For each metric, buildings are ranked against:
+- **All NYC buildings** - Citywide percentile (e.g., "worse than 75% of NYC")
+- **Neighborhood buildings** - Local percentile within the same NTA
 
-## 📖 Methodology
+A building at the 75th percentile has more violations than 75% of comparison buildings.
 
-See [docs/methodology.md](docs/methodology.md) for detailed documentation of:
-- Data processing and cleaning
-- Index calculation methodology
-- 311 bias adjustment approach
-- Statistical analysis methods
+### Violation Categories
 
-## ⚠️ Limitations
+Violations are categorized by keyword matching in the violation description:
+- **Lead**: Lead paint hazards, lead-based paint violations
+- **Mold**: Mold, mildew, moisture damage
+- **Pests**: Roaches, mice, rats, bedbugs, vermin
+- **Heat**: Heat, hot water, heating system issues
 
-1. **311 reporting bias** - Reporting rates vary by neighborhood income/demographics
-2. **Health data granularity** - Health data is aggregated to UHF42 areas (42 neighborhoods), not NTA level
-3. **Correlation ≠ causation** - Housing conditions correlate with but don't necessarily cause health outcomes
-4. **Violation detection** - Keyword-based categorization may miss some health-related violations
-5. **Data currency** - Violation data reflects historical records; current building conditions may differ
+### Trend Analysis
 
-## 📄 License
+Compares violations from the last 12 months against the prior 12 months to determine if conditions are improving or worsening.
 
-MIT License - see [LICENSE](LICENSE) for details.
+## Limitations
 
-## 🤝 Contributing
+### Data Coverage
 
-Contributions welcome! Please read our contributing guidelines before submitting PRs.
+- **Residential buildings only** - Only buildings with 3+ residential units are tracked by HPD
+- **Single/two-family homes excluded** - These are not in the HPD violations database
+- **Commercial buildings excluded** - Non-residential properties are not included
 
-## 📧 Contact
+### Data Currency
 
-For questions about this project, please open an issue on GitHub.
+- **Historical records** - Violation data reflects when inspections occurred, not necessarily current conditions
+- **Open vs closed** - Some violations may be resolved but still appear in historical counts
+- **Inspection frequency varies** - Buildings are not inspected on a regular schedule; data reflects complaint-driven inspections
 
+### Methodological Limitations
+
+- **Keyword matching** - Violation categorization (lead, mold, etc.) relies on text matching and may miss some relevant violations or include false positives
+- **Building size normalization** - Adjusted score assumes violations scale linearly with units, which may not always hold
+- **Neighborhood boundaries** - NTA boundaries are administrative, not necessarily reflective of actual neighborhood conditions
+
+### Reporting Bias
+
+- **311 complaint-driven** - Most inspections result from tenant complaints; buildings with fewer complaints may have fewer documented violations regardless of actual conditions
+- **Underreporting in some areas** - Tenants in certain neighborhoods may be less likely to file complaints due to fear of retaliation, language barriers, or other factors
+
+### What This Tool Does NOT Show
+
+- **Health outcomes** - This tool shows housing violations, not health data. Correlation between housing conditions and health outcomes exists but is not displayed here
+- **Current building conditions** - Violations are historical records; current conditions may differ
+- **Causation** - High violation counts indicate documented problems but don't establish causation for any health or quality-of-life outcomes
+
+## Data Sources
+
+- [HPD Housing Maintenance Code Violations](https://data.cityofnewyork.us/Housing-Development/Housing-Maintenance-Code-Violations/wvxf-dwi5)
+- [HPD Housing Maintenance Code Complaints](https://data.cityofnewyork.us/Housing-Development/Housing-Maintenance-Code-Complaints/uwyv-629c)
+- [NYC PLUTO](https://data.cityofnewyork.us/City-Government/Primary-Land-Use-Tax-Lot-Output-PLUTO-/64uk-42ks)
+- [NTA Boundaries](https://data.cityofnewyork.us/City-Government/2020-Neighborhood-Tabulation-Areas-NTAs-/9nt8-h7nd)
+
+## License
+
+MIT License
