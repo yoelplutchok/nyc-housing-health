@@ -1,3 +1,15 @@
+---
+title: NYC Housing Violations Lookup
+emoji: 🏠
+colorFrom: blue
+colorTo: red
+sdk: streamlit
+sdk_version: 1.28.0
+app_file: app.py
+pinned: false
+license: mit
+---
+
 # NYC Housing Violations Lookup Tool
 
 A building lookup tool that allows users to search any NYC address and see how its housing code violations compare to other buildings citywide and within its neighborhood.
