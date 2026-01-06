@@ -92,9 +92,15 @@ data/processed/nta_with_health_updated.csv
 data/processed/nta_with_demographics.csv
 data/processed/nta_complete.csv
 
-# Keep these essential files:
-# - building_lookup.db.gz (compressed database, ~95MB)
+# Keep these essential files for deployment:
+# - building_lookup.db.gz (compressed database, ~99MB)
 # - housing_health_index.csv (small)
+!data/processed/building_lookup.db.gz
+!data/processed/housing_health_index.csv
+
+# GeoJSON boundaries needed for map
+!data/geo/
+!data/geo/*.geojson
 
 # Health data - can be redownloaded
 data/health/*.csv

@@ -21,6 +21,7 @@ HEALTH_DIR = DATA_DIR / "health"
 HPD_VIOLATIONS_DIR = RAW_DIR / "hpd_violations"
 HPD_COMPLAINTS_DIR = RAW_DIR / "hpd_complaints"
 REQUESTS_311_DIR = RAW_DIR / "311_requests"
+DOB_VIOLATIONS_DIR = RAW_DIR / "dob_violations"
 
 # Output directories
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
@@ -49,6 +50,7 @@ def ensure_dirs_exist() -> None:
         HPD_VIOLATIONS_DIR,
         HPD_COMPLAINTS_DIR,
         REQUESTS_311_DIR,
+        DOB_VIOLATIONS_DIR,
         PROCESSED_DIR,
         GEO_DIR,
         HEALTH_DIR,

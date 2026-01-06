@@ -675,10 +675,94 @@ def get_percentile_color(pct):
         return COLORS['danger']
 
 
+def get_data_update_date():
+    """Get the last update date from the database file."""
+    try:
+        db_path = PROCESSED_DIR / "building_lookup.db"
+        if db_path.exists():
+            from datetime import datetime
+            mtime = db_path.stat().st_mtime
+            return datetime.fromtimestamp(mtime).strftime("%b %d, %Y")
+    except:
+        pass
+    return None
+
+
 def inject_custom_css():
     """Inject custom CSS for improved styling."""
     st.markdown("""
 <style>
+    /* ========== HERO SECTION WITH NYC SKYLINE ========== */
+    .hero-section {
+        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 50%, #4a7c9b 100%);
+        border-radius: 12px;
+        padding: 32px;
+        margin-bottom: 24px;
+        position: relative;
+        overflow: hidden;
+    }
+    .hero-section::before {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120'%3E%3Cpath fill='%23ffffff15' d='M0,120 L0,80 L30,80 L30,60 L50,60 L50,80 L70,80 L70,40 L90,40 L90,80 L120,80 L120,50 L140,50 L140,30 L160,30 L160,50 L180,50 L180,80 L210,80 L210,20 L230,20 L230,80 L260,80 L260,70 L280,70 L280,80 L310,80 L310,45 L330,45 L330,25 L350,25 L350,45 L370,45 L370,80 L400,80 L400,60 L420,60 L420,80 L450,80 L450,35 L470,35 L470,15 L490,15 L490,35 L510,35 L510,80 L540,80 L540,55 L560,55 L560,80 L590,80 L590,40 L610,40 L610,80 L640,80 L640,65 L660,65 L660,80 L690,80 L690,30 L710,30 L710,10 L730,10 L730,30 L750,30 L750,80 L780,80 L780,50 L800,50 L800,80 L830,80 L830,70 L850,70 L850,80 L880,80 L880,45 L900,45 L900,80 L930,80 L930,60 L950,60 L950,80 L980,80 L980,35 L1000,35 L1000,80 L1030,80 L1030,55 L1050,55 L1050,80 L1080,80 L1080,40 L1100,40 L1100,20 L1120,20 L1120,40 L1140,40 L1140,80 L1170,80 L1170,65 L1200,65 L1200,120 Z'/%3E%3C/svg%3E") repeat-x;
+        background-size: auto 60px;
+        opacity: 0.6;
+    }
+    .hero-title {
+        color: white;
+        font-size: 28px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .hero-subtitle {
+        color: rgba(255,255,255,0.85);
+        font-size: 16px;
+        margin-bottom: 20px;
+    }
+    .hero-stats {
+        display: flex;
+        gap: 32px;
+        flex-wrap: wrap;
+    }
+    .hero-stat {
+        text-align: center;
+    }
+    .hero-stat-value {
+        color: white;
+        font-size: 24px;
+        font-weight: 700;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .hero-stat-label {
+        color: rgba(255,255,255,0.75);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Data source badge */
+    .data-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255,255,255,0.15);
+        border: 1px solid rgba(255,255,255,0.25);
+        border-radius: 20px;
+        padding: 6px 14px;
+        margin-top: 16px;
+        color: rgba(255,255,255,0.9);
+        font-size: 12px;
+    }
+    .data-badge img {
+        height: 16px;
+        opacity: 0.9;
+    }
+
     /* Card styling */
     .metric-card {
         background: #f9fafb;
@@ -799,6 +883,34 @@ def inject_custom_css():
     [data-testid="stMetricValue"] {
         font-size: 28px;
     }
+
+    /* ========== MOBILE RESPONSIVE ========== */
+    @media (max-width: 768px) {
+        .hero-section {
+            padding: 20px;
+        }
+        .hero-title {
+            font-size: 22px;
+        }
+        .hero-stats {
+            gap: 16px;
+        }
+        .hero-stat-value {
+            font-size: 18px;
+        }
+        .progress-label {
+            width: 100px;
+            font-size: 13px;
+        }
+        .progress-pct, .progress-pct-nhood {
+            width: 50px;
+            font-size: 11px;
+        }
+        /* Auto-collapse expanders content on mobile - handled by Streamlit */
+        [data-testid="stExpander"] {
+            margin-bottom: 8px;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -866,6 +978,27 @@ def display_comparison_card(title, subtitle, adjusted_pct, adjusted_label, raw_p
         st.caption(f"{raw_label} ({int(raw_count or 0)} violations)")
 
 
+def display_score_card(title, subtitle, pct, label, count=None):
+    """Display a simplified score card with single percentile (used in new UI)."""
+    pct_color = get_percentile_color(pct) if pct else COLORS['neutral']
+    pct_int = int(round(pct)) if pct and not pd.isna(pct) else 0
+
+    with st.container():
+        st.markdown(f"**{title}**")
+        st.caption(subtitle)
+
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.progress(pct_int / 100)
+        with col2:
+            st.markdown(f"<span style='font-size: 24px; font-weight: 700; color: {pct_color};'>{format_percentile(pct)}</span>", unsafe_allow_html=True)
+
+        if count is not None:
+            st.caption(f"{label} ({int(count)} total violations)")
+        else:
+            st.caption(label)
+
+
 def display_data_table(rows, title=None, caption=None):
     """Display a clean data table with category, count, city %, and neighborhood %."""
     if title:
@@ -925,92 +1058,185 @@ def display_building(building, time_period="All time (2019+)"):
 
     st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
-    # ========== 2. COMPARISON DASHBOARD (Hero Section) ==========
-    st.markdown('<div class="section-header">How This Building Compares</div>', unsafe_allow_html=True)
+    # ========== 2. BUILDING HEALTH SCORE (Hero Section) ==========
+    st.markdown('<div class="section-header">Building Health & Safety Score</div>', unsafe_allow_html=True)
+    st.caption("Combines HPD violations (severity-weighted), rodent failures, bedbug infestations, and DOB safety violations. Adjusted for building size.")
 
     adjusted_pct = building.get('adjusted_score_pct')
     violation_count_pct = building.get('violation_count_pct')
     violation_count_nhood_pct = building.get('violation_count_nhood_pct')
     violation_count = building.get('violation_count', 0)
 
-    # For neighborhood comparison, we need adjusted score at neighborhood level
-    # Using violation_count_nhood_pct as proxy for now (since we don't have adjusted_score_nhood_pct)
-    adjusted_nhood_pct = building.get('adjusted_score_nhood_pct', violation_count_nhood_pct)
+    # For neighborhood comparison, use adjusted score at neighborhood level
+    adjusted_nhood_pct = building.get('adjusted_score_nhood_pct')
+    if adjusted_nhood_pct is None or pd.isna(adjusted_nhood_pct):
+        adjusted_nhood_pct = violation_count_nhood_pct  # Fallback for older data
+
+    # Score type selector - default to adjusted
+    score_type = st.selectbox(
+        "Score type:",
+        ["Comprehensive (adjusted per unit)", "HPD Violations Only (raw count)"],
+        index=0,
+        help="Comprehensive score includes HPD violations, rodent failures, bedbug infestations, and DOB violations - adjusted for building size. HPD Only shows raw violation count."
+    )
+
+    use_adjusted = score_type == "Comprehensive (adjusted per unit)"
 
     col1, col2 = st.columns(2)
 
     with col1:
-        if units > 1:
-            adj_label = f"Worse than {int(adjusted_pct or 0)}% of NYC buildings (adjusted for {units} units)"
+        if use_adjusted:
+            pct_display = adjusted_pct
+            if units > 1:
+                label = f"Worse than {int(adjusted_pct or 0)}% of NYC buildings (adjusted for {units} units)"
+            else:
+                label = f"Worse than {int(adjusted_pct or 0)}% of NYC buildings"
         else:
-            adj_label = f"Worse than {int(adjusted_pct or 0)}% of NYC buildings"
-        raw_label = f"More violations than {int(violation_count_pct or 0)}% of NYC"
+            pct_display = violation_count_pct
+            label = f"More HPD violations than {int(violation_count_pct or 0)}% of NYC buildings"
 
-        display_comparison_card(
+        display_score_card(
             title="vs All NYC Buildings",
             subtitle="767,000+ residential buildings",
-            adjusted_pct=adjusted_pct,
-            adjusted_label=adj_label,
-            raw_pct=violation_count_pct,
-            raw_label=raw_label,
-            raw_count=violation_count
+            pct=pct_display,
+            label=label,
+            count=violation_count if not use_adjusted else None
         )
 
     with col2:
-        adj_label_nhood = f"Worse than {int(adjusted_nhood_pct or 0)}% of buildings in {nta}"
-        raw_label_nhood = f"More violations than {int(violation_count_nhood_pct or 0)}% locally"
+        if use_adjusted:
+            pct_display_nhood = adjusted_nhood_pct
+            label_nhood = f"Worse than {int(adjusted_nhood_pct or 0)}% of buildings in {nta}"
+        else:
+            pct_display_nhood = violation_count_nhood_pct
+            label_nhood = f"More HPD violations than {int(violation_count_nhood_pct or 0)}% locally"
 
-        display_comparison_card(
+        display_score_card(
             title=f"vs {nta}",
             subtitle="Buildings in this neighborhood",
-            adjusted_pct=adjusted_nhood_pct,
-            adjusted_label=adj_label_nhood,
-            raw_pct=violation_count_nhood_pct,
-            raw_label=raw_label_nhood,
-            raw_count=violation_count
+            pct=pct_display_nhood,
+            label=label_nhood,
+            count=violation_count if not use_adjusted else None
         )
 
-    st.caption("**Adjusted Score** accounts for building size (violations per unit). **Raw Count** shows total violations regardless of size.")
-
     st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
-    # ========== 3. VIOLATION BREAKDOWN ==========
-    violation_rows = [
-        {'label': 'Total Violations', 'count': building.get('violation_count', 0),
-         'city_pct': building.get('violation_count_pct'), 'nhood_pct': building.get('violation_count_nhood_pct')},
-        {'label': 'Open Violations', 'count': building.get('violations_open', 0),
-         'city_pct': building.get('violations_open_pct'), 'nhood_pct': building.get('violations_open_nhood_pct')},
-        {'label': 'Rodent Failures', 'count': building.get('rodent_failures', 0),
-         'city_pct': building.get('rodent_failures_pct'), 'nhood_pct': building.get('rodent_failures_nhood_pct')},
-    ]
+    # ========== 3. VIOLATIONS CONTRIBUTING TO SCORE ==========
+    st.markdown('<div class="section-header">HPD Housing Violations</div>', unsafe_allow_html=True)
+    st.caption('Contributes to score. [Source: NYC HPD](https://data.cityofnewyork.us/Housing-Development/Housing-Maintenance-Code-Violations/wvxf-dwi5)')
 
-    # Add class breakdown
-    class_rows = [
-        {'label': 'Class C (Hazardous)', 'count': building.get('class_c_count', 0),
-         'city_pct': building.get('class_c_count_pct'), 'nhood_pct': None, 'subitem': True},
-        {'label': 'Class B (Hazardous)', 'count': building.get('class_b_count', 0),
-         'city_pct': building.get('class_b_count_pct'), 'nhood_pct': None, 'subitem': True},
-        {'label': 'Class A (Non-Hazardous)', 'count': building.get('class_a_count', 0),
-         'city_pct': building.get('class_a_count_pct'), 'nhood_pct': None, 'subitem': True},
-    ]
+    # Main violation metrics
+    total_violations = int(building.get('violation_count', 0) or 0)
+    open_violations = int(building.get('violations_open', 0) or 0)
+    class_c = int(building.get('class_c_count', 0) or 0)
+    class_b = int(building.get('class_b_count', 0) or 0)
+    class_a = int(building.get('class_a_count', 0) or 0)
+    class_i = int(building.get('class_i_count', 0) or 0)
 
-    # Health categories
-    health_rows = [
-        {'label': 'Lead Violations', 'count': building.get('lead_violations', 0),
-         'city_pct': building.get('lead_violations_pct'), 'nhood_pct': building.get('lead_violations_nhood_pct'), 'subitem': True},
-        {'label': 'Mold Violations', 'count': building.get('mold_violations', 0),
-         'city_pct': building.get('mold_violations_pct'), 'nhood_pct': building.get('mold_violations_nhood_pct'), 'subitem': True},
-        {'label': 'Pest Violations', 'count': building.get('pest_violations', 0),
-         'city_pct': building.get('pest_violations_pct'), 'nhood_pct': building.get('pest_violations_nhood_pct'), 'subitem': True},
-        {'label': 'Heat/Hot Water', 'count': building.get('heat_violations', 0),
-         'city_pct': building.get('heat_violations_pct'), 'nhood_pct': building.get('heat_violations_nhood_pct'), 'subitem': True},
-    ]
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total HPD Violations", total_violations)
+        st.caption(f"{format_percentile(building.get('violation_count_pct'))} percentile citywide")
+    with col2:
+        st.metric("Open Violations", open_violations)
+        st.caption(f"{format_percentile(building.get('violations_open_pct'))} percentile citywide")
 
-    display_data_table(violation_rows + class_rows + health_rows,
-                       title="Violations Breakdown",
-                       caption="HPD violations (2019-present). Health categories are subsets of total.")
+    # Class breakdown in expander - these sum to total
+    with st.expander("By Severity Class"):
+        st.caption("**These sum to Total.** Class C (Immediately Hazardous) = 3x weight, Class B (Hazardous) = 2x, Class A (Non-Hazardous) = 1x, Class I (Orders) = 2.5x")
+        class_rows = [
+            {'label': 'Class C (Immediately Hazardous)', 'count': class_c,
+             'city_pct': building.get('class_c_count_pct'), 'nhood_pct': None},
+            {'label': 'Class B (Hazardous)', 'count': class_b,
+             'city_pct': building.get('class_b_count_pct'), 'nhood_pct': None},
+            {'label': 'Class A (Non-Hazardous)', 'count': class_a,
+             'city_pct': building.get('class_a_count_pct'), 'nhood_pct': None},
+            {'label': 'Class I (Orders/Vacate)', 'count': class_i,
+             'city_pct': building.get('class_i_count_pct'), 'nhood_pct': None},
+        ]
+        display_data_table(class_rows)
 
-    st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
+    # Health categories in expander - these are a different slicing
+    lead = int(building.get('lead_violations', 0) or 0)
+    mold = int(building.get('mold_violations', 0) or 0)
+    pest = int(building.get('pest_violations', 0) or 0)
+    heat = int(building.get('heat_violations', 0) or 0)
+
+    with st.expander("By Health Category"):
+        st.caption("**Different slicing by keyword.** May overlap - a single violation can be flagged for multiple categories.")
+        health_rows = [
+            {'label': 'Lead Violations', 'count': lead,
+             'city_pct': building.get('lead_violations_pct'), 'nhood_pct': building.get('lead_violations_nhood_pct')},
+            {'label': 'Mold Violations', 'count': mold,
+             'city_pct': building.get('mold_violations_pct'), 'nhood_pct': building.get('mold_violations_nhood_pct')},
+            {'label': 'Pest Violations', 'count': pest,
+             'city_pct': building.get('pest_violations_pct'), 'nhood_pct': building.get('pest_violations_nhood_pct')},
+            {'label': 'Heat/Hot Water', 'count': heat,
+             'city_pct': building.get('heat_violations_pct'), 'nhood_pct': building.get('heat_violations_nhood_pct')},
+        ]
+        display_data_table(health_rows)
+
+    st.markdown("<div style='margin-bottom: 16px;'></div>", unsafe_allow_html=True)
+
+    # ========== 3.5 ADDITIONAL HEALTH & SAFETY DATA ==========
+    rodent_failures = int(building.get('rodent_failures', 0) or 0)
+    rodent_inspections = int(building.get('rodent_inspections', 0) or 0)
+    bedbug_reports = int(building.get('bedbug_reports', 0) or 0)
+    bedbug_units = int(building.get('bedbug_infested_units', 0) or 0)
+    dob_violations = int(building.get('dob_health_violations', 0) or 0)
+    dob_fines = float(building.get('dob_total_fines', 0) or 0)
+
+    # Show section if any data exists
+    has_additional_data = (rodent_inspections > 0 or bedbug_reports > 0 or dob_violations > 0)
+
+    if has_additional_data:
+        st.markdown('<div class="section-header">Additional Health & Safety Data</div>', unsafe_allow_html=True)
+        st.caption("These also contribute to the Building Health & Safety Score above.")
+
+        # Rodent Inspections
+        if rodent_inspections > 0 or rodent_failures > 0:
+            st.markdown("**Rodent Inspections**")
+            st.caption('[Source: DOHMH](https://data.cityofnewyork.us/Health/Rodent-Inspection/p937-wjvj)')
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Failed Inspections", rodent_failures)
+            with col2:
+                st.metric("Total Inspections", rodent_inspections)
+            with col3:
+                if rodent_inspections > 0:
+                    fail_rate = (rodent_failures / rodent_inspections) * 100
+                    st.metric("Failure Rate", f"{fail_rate:.0f}%")
+            st.caption(f"{format_percentile(building.get('rodent_failures_pct'))} percentile citywide")
+            st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
+
+        # Bedbug Reports
+        if bedbug_reports > 0 or bedbug_units > 0:
+            st.markdown("**Bedbug Infestations**")
+            st.caption('[Source: HPD Bedbug Reporting](https://data.cityofnewyork.us/Housing-Development/Bedbug-Reporting/wz6d-d3jb)')
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Filing Reports", bedbug_reports)
+            with col2:
+                st.metric("Units Reported Infested", bedbug_units)
+            st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
+
+        # DOB Safety Violations
+        if dob_violations > 0 or dob_fines > 0:
+            st.markdown("**DOB Safety Violations**")
+            st.caption("Structural, fire safety, asbestos. [Source: DOB ECB](https://data.cityofnewyork.us/Housing-Development/DOB-ECB-Violations/6bgk-3dad)")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Health/Safety Violations", dob_violations)
+            with col2:
+                hazardous = int(building.get('dob_hazardous_count', 0) or 0)
+                st.metric("Hazardous", hazardous)
+            with col3:
+                if dob_fines > 0:
+                    st.metric("Total Fines", f"${dob_fines:,.0f}")
+                else:
+                    st.metric("Total Fines", "$0")
+
+        st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
     # ========== 4. COMPLAINTS SUMMARY ==========
     complaint_rows = [
@@ -1037,8 +1263,8 @@ def display_building(building, time_period="All time (2019+)"):
         ])
 
     display_data_table(complaint_rows,
-                       title="Complaints (311 Reports)",
-                       caption="Tenant complaints to HPD. Categories may overlap.")
+                       title="311 Complaints (For Reference)",
+                       caption="Tenant-reported issues via 311. NOT included in score (subjective, hard to normalize). [Source: HPD Complaints](https://data.cityofnewyork.us/Housing-Development/Housing-Maintenance-Code-Complaints/uwyv-629c)")
 
     st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
@@ -1714,7 +1940,36 @@ The primary "Adjusted Health Score" factors in:
         st.caption("Violation categorization uses keyword matching")
         st.caption("Pre-2019 violations are not included")
 
-    st.title("NYC Building Violation Comparison")
+    # ========== HERO SECTION ==========
+    update_date = get_data_update_date()
+    st.markdown(f"""
+    <div class="hero-section">
+        <div class="hero-title">NYC Building Health & Safety Index</div>
+        <div class="hero-subtitle">Compare any building to 767,000+ residential properties across New York City</div>
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <div class="hero-stat-value">767,210</div>
+                <div class="hero-stat-label">Buildings Tracked</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-value">5.5M</div>
+                <div class="hero-stat-label">Violations Analyzed</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-value">2.2M</div>
+                <div class="hero-stat-label">311 Complaints</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-value">262</div>
+                <div class="hero-stat-label">Neighborhoods</div>
+            </div>
+        </div>
+        <div class="data-badge">
+            <span>📊</span>
+            <span>Powered by NYC Open Data • Updated {update_date if update_date else 'Weekly'}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Show comparison count in tab header
     compare_count = len(st.session_state.get('compare_buildings', []))

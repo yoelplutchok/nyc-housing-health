@@ -71,6 +71,17 @@ CLASS_SEVERITY_WEIGHTS = {
 # Weighted same as Class B violations (health hazard)
 RODENT_FAILURE_WEIGHT = 2.0
 
+# Weight for bedbug infested units
+# Lower weight than violations since it's landlord-reported and less verifiable
+BEDBUG_UNIT_WEIGHT = 1.5
+
+# Weight for DOB health/safety violations
+# High weight - these are serious structural/fire/asbestos issues
+DOB_VIOLATION_WEIGHT = 2.5
+
+# Extra weight for DOB hazardous violations (Class 3)
+DOB_HAZARDOUS_WEIGHT = 3.5
+
 # Risk tier thresholds (percentile-based)
 RISK_TIER_THRESHOLDS = {
     'Very High Risk': 95,  # Top 5%
@@ -553,6 +564,123 @@ def aggregate_bedbug_reports(logger):
     return agg
 
 
+def aggregate_dob_violations(logger):
+    """Aggregate DOB ECB violations by BBL, filtered for health-related issues."""
+
+    # Find DOB violations file
+    dob_dir = RAW_DIR / "dob_violations"
+    if not dob_dir.exists():
+        logger.warning("No DOB violations directory found")
+        return None
+
+    dob_files = list(dob_dir.glob("dob_violations_*.csv"))
+    if not dob_files:
+        # Also check RAW_DIR directly
+        dob_files = list(RAW_DIR.glob("dob_violations_*.csv"))
+
+    if not dob_files:
+        logger.warning("No DOB violations data found")
+        return None
+
+    dob_file = max(dob_files, key=lambda x: x.stat().st_mtime)
+    logger.info(f"Aggregating DOB violations from {dob_file}...")
+
+    # Read DOB data - DOB uses underscored column names
+    df = pd.read_csv(dob_file, low_memory=False)
+    df.columns = df.columns.str.lower()
+
+    logger.info(f"  Loaded {len(df):,} DOB records")
+
+    # Create BBL from boro, block, lot if not already present
+    if 'bbl' not in df.columns:
+        if all(col in df.columns for col in ['boro', 'block', 'lot']):
+            # BBL format: 1 digit boro + 5 digit block + 4 digit lot
+            df['boro'] = pd.to_numeric(df['boro'], errors='coerce').fillna(0).astype(int)
+            df['block'] = pd.to_numeric(df['block'], errors='coerce').fillna(0).astype(int)
+            df['lot'] = pd.to_numeric(df['lot'], errors='coerce').fillna(0).astype(int)
+            df['bbl'] = (df['boro'].astype(str) +
+                        df['block'].astype(str).str.zfill(5) +
+                        df['lot'].astype(str).str.zfill(4))
+            logger.info(f"  Created BBL from boro/block/lot")
+        else:
+            logger.warning("DOB data has no BBL or boro/block/lot columns - cannot join to buildings")
+            return None
+
+    # Clean BBL
+    df = df[df['bbl'].notna() & (df['bbl'] != '000000000')]
+    logger.info(f"  Valid BBLs: {len(df):,}")
+
+    # Check for health-related flag from download
+    if 'is_health_related' not in df.columns:
+        logger.info("  Creating health-related flags...")
+        # Health-related keywords for filtering
+        HEALTH_KEYWORDS = [
+            'asbestos', 'unsafe', 'structural', 'fire', 'egress', 'exit',
+            'gas', 'carbon monoxide', 'hazard', 'safety', 'boiler', 'elevator',
+            'collapse', 'dangerous', 'emergency', 'vacate'
+        ]
+
+        # Flag hazardous severity (DOB uses CLASS - 3 for most severe)
+        df['is_hazardous'] = False
+        if 'severity' in df.columns:
+            df['is_hazardous'] = (df['severity'].str.contains('3', na=False) |
+                                  df['severity'].str.lower().str.contains('hazardous', na=False))
+
+        # Flag by keywords in violation description
+        text_col = df['violation_description'].fillna('') if 'violation_description' in df.columns else ''
+        keyword_pattern = '|'.join(HEALTH_KEYWORDS)
+        df['has_health_keyword'] = text_col.str.lower().str.contains(keyword_pattern, na=False)
+
+        # Combined health flag
+        df['is_health_related'] = df['is_hazardous'] | df['has_health_keyword']
+
+    # Clean penalty amount - DOB uses 'penality_imposed' (misspelled)
+    penalty_col = 'penality_imposed' if 'penality_imposed' in df.columns else 'penalityimposed'
+    if penalty_col in df.columns:
+        df['penalty_amount'] = pd.to_numeric(df[penalty_col], errors='coerce').fillna(0)
+    else:
+        df['penalty_amount'] = 0
+
+    # Filter to health-related only
+    df_health = df[df['is_health_related'] == True].copy()
+
+    logger.info(f"  Total DOB violations: {len(df):,}")
+    logger.info(f"  Health-related: {len(df_health):,}")
+
+    if len(df_health) == 0:
+        logger.warning("  No health-related DOB violations found")
+        return None
+
+    # Get issue date column
+    date_col = 'issue_date' if 'issue_date' in df_health.columns else 'issuedate'
+
+    # Aggregate by BBL
+    agg_full = df_health.groupby('bbl').agg({
+        'is_health_related': 'count',  # count health violations
+        'penalty_amount': 'sum',
+        date_col: 'max',
+    }).reset_index()
+
+    agg_full.rename(columns={
+        'is_health_related': 'dob_health_violations',
+        'penalty_amount': 'dob_total_fines',
+        date_col: 'last_dob_violation',
+    }, inplace=True)
+
+    # Also get hazardous (Class 3) count separately
+    if 'is_hazardous' in df.columns:
+        hazardous_counts = df[df['is_hazardous'] == True].groupby('bbl').size().reset_index(name='dob_hazardous_count')
+        agg_full = agg_full.merge(hazardous_counts, on='bbl', how='left')
+        agg_full['dob_hazardous_count'] = agg_full['dob_hazardous_count'].fillna(0).astype(int)
+    else:
+        agg_full['dob_hazardous_count'] = 0
+
+    logger.info(f"  Buildings with DOB health violations: {len(agg_full):,}")
+    logger.info(f"  Total fines: ${agg_full['dob_total_fines'].sum():,.0f}")
+
+    return agg_full
+
+
 def load_pluto_data(logger):
     """Load PLUTO data for building characteristics."""
 
@@ -718,23 +846,47 @@ def calculate_building_risk_scores(buildings_df, neighborhood_df, logger):
             buildings_df['weighted_score_per_unit'] = buildings_df['weighted_score'] / units_safe
             buildings_df['weighted_score_per_unit_pct'] = smart_percentile(buildings_df['weighted_score_per_unit'])
 
-    # ========== COMBINED SCORE (HPD violations + Rodent failures) ==========
-    # Combines weighted violation score with rodent inspection failures
-    logger.info("  Calculating combined score (violations + rodent failures)...")
+    # ========== COMPREHENSIVE HEALTH SCORE ==========
+    # Combines ALL health/safety data sources:
+    # - HPD violations (weighted by severity class)
+    # - Rodent inspection failures (DOHMH)
+    # - Bedbug infested units (HPD)
+    # - DOB health/safety violations (structural, fire, asbestos)
+    # NOTE: 311 complaints are NOT included (subjective, hard to normalize)
+    logger.info("  Calculating comprehensive health score (all sources)...")
+
     if 'weighted_score' in buildings_df.columns:
         buildings_df['weighted_score'] = buildings_df['weighted_score'].fillna(0)
 
-        # Add rodent failures to the score (weighted at 2.0 each, same as Class B)
+        # Start with HPD weighted violations
+        buildings_df['combined_score'] = buildings_df['weighted_score'].copy()
+        logger.info(f"    Base: HPD violations (severity-weighted)")
+
+        # Add rodent failures (weighted at 2.0 each, same as Class B)
         if 'rodent_failures' in buildings_df.columns:
             buildings_df['rodent_failures'] = buildings_df['rodent_failures'].fillna(0)
-            buildings_df['combined_score'] = (
-                buildings_df['weighted_score'] +
-                buildings_df['rodent_failures'] * RODENT_FAILURE_WEIGHT
+            buildings_df['combined_score'] += buildings_df['rodent_failures'] * RODENT_FAILURE_WEIGHT
+            logger.info(f"    + Rodent failures (weight={RODENT_FAILURE_WEIGHT})")
+
+        # Add bedbug infested units (weighted at 1.5 per unit)
+        if 'bedbug_infested_units' in buildings_df.columns:
+            buildings_df['bedbug_infested_units'] = buildings_df['bedbug_infested_units'].fillna(0)
+            buildings_df['combined_score'] += buildings_df['bedbug_infested_units'] * BEDBUG_UNIT_WEIGHT
+            logger.info(f"    + Bedbug infested units (weight={BEDBUG_UNIT_WEIGHT})")
+
+        # Add DOB health/safety violations (weighted at 2.5, hazardous at 3.5)
+        if 'dob_health_violations' in buildings_df.columns:
+            buildings_df['dob_health_violations'] = buildings_df['dob_health_violations'].fillna(0)
+            buildings_df['dob_hazardous_count'] = buildings_df['dob_hazardous_count'].fillna(0)
+            # Non-hazardous DOB violations
+            dob_non_hazardous = buildings_df['dob_health_violations'] - buildings_df['dob_hazardous_count']
+            dob_non_hazardous = dob_non_hazardous.clip(lower=0)
+            # Add weighted DOB violations
+            buildings_df['combined_score'] += (
+                dob_non_hazardous * DOB_VIOLATION_WEIGHT +
+                buildings_df['dob_hazardous_count'] * DOB_HAZARDOUS_WEIGHT
             )
-            logger.info(f"    Added rodent failures to score (weight={RODENT_FAILURE_WEIGHT})")
-        else:
-            buildings_df['combined_score'] = buildings_df['weighted_score']
-            logger.info("    No rodent data - using violations only")
+            logger.info(f"    + DOB violations (weight={DOB_VIOLATION_WEIGHT}, hazardous={DOB_HAZARDOUS_WEIGHT})")
 
         buildings_df['combined_score_pct'] = smart_percentile(buildings_df['combined_score'])
 
@@ -799,7 +951,7 @@ def calculate_building_risk_scores(buildings_df, neighborhood_df, logger):
 
     # ========== NEIGHBORHOOD PERCENTILES ==========
     logger.info("  Calculating neighborhood percentiles...")
-    
+
     # Calculate percentiles within each NTA
     pct_cols_map = {
         'violation_count': 'violation_count_nhood_pct',
@@ -811,7 +963,7 @@ def calculate_building_risk_scores(buildings_df, neighborhood_df, logger):
         'complaint_count': 'complaints_nhood_pct',
         'rodent_failures': 'rodent_failures_nhood_pct',
     }
-    
+
     for src_col, pct_col in pct_cols_map.items():
         if src_col in buildings_df.columns and 'nta' in buildings_df.columns:
             buildings_df[pct_col] = buildings_df.groupby('nta')[src_col].transform(
@@ -825,6 +977,27 @@ def calculate_building_risk_scores(buildings_df, neighborhood_df, logger):
                 buildings_df[pct_col] = buildings_df[pct_col].fillna(50)
         else:
             buildings_df[pct_col] = 50
+
+    # Calculate neighborhood percentile for the comprehensive adjusted score
+    # This uses combined_score_per_unit for multi-unit buildings, combined_score for single-unit
+    logger.info("  Calculating adjusted score neighborhood percentile...")
+    if 'combined_score_per_unit' in buildings_df.columns and 'nta' in buildings_df.columns:
+        # For multi-unit buildings, use per-unit score; for single-unit, use raw score
+        # Create a temporary column with the appropriate score for each building
+        units_safe = buildings_df['unitsres'].clip(lower=1)
+        buildings_df['_adj_score_for_nhood'] = buildings_df['combined_score'] / units_safe
+
+        # Calculate neighborhood percentile
+        buildings_df['adjusted_score_nhood_pct'] = buildings_df.groupby('nta')['_adj_score_for_nhood'].transform(
+            lambda x: x.rank(pct=True, method='average') * 100
+        )
+        # Fill NaN with citywide percentile
+        buildings_df['adjusted_score_nhood_pct'] = buildings_df['adjusted_score_nhood_pct'].fillna(
+            buildings_df['adjusted_score_pct']
+        )
+        # Clean up temp column
+        buildings_df.drop(columns=['_adj_score_for_nhood'], inplace=True)
+        logger.info(f"    Neighborhood adjusted score percentile calculated")
     
     # ========== LEGACY COMPOSITE SCORES (for backward compatibility) ==========
     # Fill any remaining NaN in score columns
@@ -919,6 +1092,8 @@ def create_sqlite_database(buildings_df, output_path, logger, nonres_df=None):
         'rodent_inspections', 'rodent_failures', 'last_rodent_inspection',
         # Bedbug data
         'bedbug_reports', 'bedbug_infested_units', 'has_bedbug_history',
+        # DOB violations (health-related)
+        'dob_health_violations', 'dob_hazardous_count', 'dob_total_fines', 'last_dob_violation',
         # Time-based violation counts
         'violations_1yr', 'violations_2yr', 'violations_open_1yr', 'violations_open_2yr',
         'violations_1yr_pct', 'violations_2yr_pct', 'violations_open_1yr_pct', 'violations_open_2yr_pct',
@@ -929,6 +1104,7 @@ def create_sqlite_database(buildings_df, output_path, logger, nonres_df=None):
         'combined_score', 'combined_score_pct',
         'combined_score_per_unit', 'combined_score_per_unit_pct',
         'adjusted_score_pct',  # Primary comparison metric (per-unit for multi-unit, raw for single)
+        'adjusted_score_nhood_pct',  # Same metric but percentile within neighborhood
         # Per-unit normalized metrics
         'violations_per_unit', 'violations_per_unit_pct',
         'open_violations_per_unit', 'open_violations_per_unit_pct',
@@ -1159,6 +1335,13 @@ def build_address_lookup():
     if bedbug_agg is not None:
         buildings_df = buildings_df.merge(bedbug_agg, on='bbl', how='left')
         logger.info(f"  Buildings with bedbug data: {buildings_df['bedbug_reports'].notna().sum():,}")
+    gc.collect()
+
+    # LEFT JOIN DOB violations (health-related)
+    dob_agg = aggregate_dob_violations(logger)
+    if dob_agg is not None:
+        buildings_df = buildings_df.merge(dob_agg, on='bbl', how='left')
+        logger.info(f"  Buildings with DOB health violations: {buildings_df['dob_health_violations'].notna().sum():,}")
     gc.collect()
 
     # Assign NTA to buildings missing it using spatial join with coordinates
